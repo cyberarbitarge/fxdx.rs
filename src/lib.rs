@@ -46,12 +46,19 @@ where
     P: request::Prefix,
 {
     async fn send(&self, req: request::Request) -> Result<reqwest::Response> {
-        let mut builder = self.client.request(req.method(), format!("{}{}", self.endpoint, req.uri::<P>()));
+        let mut builder = self
+            .client
+            .request(req.method(), format!("{}{}", self.endpoint, req.uri::<P>()));
         let timestamp = {
             let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH)?;
             now.as_secs().to_string()
         };
-        let mut signature = format!("{},{},{}", self.signer.secret_key, &timestamp ,req.uri::<P>());
+        let mut signature = format!(
+            "{},{},{}",
+            self.signer.secret_key,
+            &timestamp,
+            req.uri::<P>()
+        );
         if let Some(suffix) = req.formalize() {
             signature = format!("{},{}", signature, suffix);
         }
@@ -66,7 +73,6 @@ where
             .await?)
     }
 
-       
     /// fresh the inner signer using sr25519
     pub async fn fresh(&mut self) -> Result<()> {
         unimplemented!()
@@ -77,44 +83,102 @@ where
         &self,
         req: request::Request,
     ) -> Result<response::PendingOrderResponse> {
-        Ok(self.send(req).await?.json::<response::PendingOrderResponse>().await?)
+        Ok(self
+            .send(req)
+            .await?
+            .json::<response::PendingOrderResponse>()
+            .await?)
     }
 
-    /// batch pending orders 
-    pub async fn batch_pending_orders(&self, req: request::Request) -> Result<response::BatchPendingOrdersResponse>  {
-        Ok(self.send(req).await?.json::<response::BatchPendingOrdersResponse>().await?)
+    /// batch pending orders
+    pub async fn batch_pending_orders(
+        &self,
+        req: request::Request,
+    ) -> Result<response::BatchPendingOrdersResponse> {
+        Ok(self
+            .send(req)
+            .await?
+            .json::<response::BatchPendingOrdersResponse>()
+            .await?)
     }
 
-    pub async fn cancel_order(&self, req: request::Request) -> Result<response::CancelOrderResponse> {
-        Ok(self.send(req).await?.json::<response::CancelOrderResponse>().await?)
+    pub async fn cancel_order(
+        &self,
+        req: request::Request,
+    ) -> Result<response::CancelOrderResponse> {
+        Ok(self
+            .send(req)
+            .await?
+            .json::<response::CancelOrderResponse>()
+            .await?)
     }
 
-    pub async fn batch_cancel_orders(&self, req: request::Request) -> Result<response::BatchCancelOrdersResponse> {
-        Ok(self.send(req).await?.json::<response::BatchCancelOrdersResponse>().await?)
+    pub async fn batch_cancel_orders(
+        &self,
+        req: request::Request,
+    ) -> Result<response::BatchCancelOrdersResponse> {
+        Ok(self
+            .send(req)
+            .await?
+            .json::<response::BatchCancelOrdersResponse>()
+            .await?)
     }
 
-    pub async fn query_order_by_id(&self, req: request::Request) -> Result<response::QueryByIdResponse> {
-        Ok(self.send(req).await?.json::<response::QueryByIdResponse>().await?)
+    pub async fn query_order_by_id(
+        &self,
+        req: request::Request,
+    ) -> Result<response::QueryByIdResponse> {
+        Ok(self
+            .send(req)
+            .await?
+            .json::<response::QueryByIdResponse>()
+            .await?)
     }
 
-    pub async fn query_orders_by_page(&self, req: request::Request) -> Result<response::QueryByPageResponse> {
-        Ok(self.send(req).await?.json::<response::QueryByPageResponse>().await?)
+    pub async fn query_orders_by_page(
+        &self,
+        req: request::Request,
+    ) -> Result<response::QueryByPageResponse> {
+        Ok(self
+            .send(req)
+            .await?
+            .json::<response::QueryByPageResponse>()
+            .await?)
     }
 
-    pub async fn query_account_balance(&self, req: request::Request) -> Result<response::BalancesResposne> {
-        Ok(self.send(req).await?.json::<response::BalancesResposne>().await?)
+    pub async fn query_account_balance(
+        &self,
+        req: request::Request,
+    ) -> Result<response::BalancesResposne> {
+        Ok(self
+            .send(req)
+            .await?
+            .json::<response::BalancesResposne>()
+            .await?)
     }
 
     pub async fn query_depth(&self, req: request::Request) -> Result<response::DepthResponse> {
-        Ok(self.send(req).await?.json::<response::DepthResponse>().await?)
+        Ok(self
+            .send(req)
+            .await?
+            .json::<response::DepthResponse>()
+            .await?)
     }
 
     pub async fn query_kline(&self, req: request::Request) -> Result<response::KlineResponse> {
-        Ok(self.send(req).await?.json::<response::KlineResponse>().await?)
+        Ok(self
+            .send(req)
+            .await?
+            .json::<response::KlineResponse>()
+            .await?)
     }
 
     pub async fn query_symbols(&self, req: request::Request) -> Result<response::SymbolsResponse> {
-        Ok(self.send(req).await?.json::<response::SymbolsResponse>().await?)
+        Ok(self
+            .send(req)
+            .await?
+            .json::<response::SymbolsResponse>()
+            .await?)
     }
 }
 

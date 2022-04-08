@@ -224,9 +224,11 @@ impl Request {
 
     pub fn payload(&self) -> anyhow::Result<Option<String>> {
         Ok(match self {
-           Request::Token{..} | Request::PendingOrder{..} => Some(serde_json::to_string(self)?),
-           Request::BatchPendingOrders(orders) => Some(serde_json::to_string(self)?),
-           _ => Ok(None),
+            Request::Token { .. } | Request::PendingOrder { .. } => {
+                Some(serde_json::to_string(self)?)
+            }
+            Request::BatchPendingOrders(orders) => Some(serde_json::to_string(self)?),
+            _ => Ok(None),
         })
     }
 }
