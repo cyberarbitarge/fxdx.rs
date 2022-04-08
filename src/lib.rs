@@ -1,7 +1,6 @@
 mod request;
 mod response;
 
-use anyhow::bail;
 use anyhow::Result;
 use openssl::hash::MessageDigest;
 use openssl::pkey::PKey;
@@ -12,32 +11,33 @@ use reqwest::header::HeaderValue;
 pub enum Error {
     #[error("Invalid request {0}")]
     InvalidRequest(String),
+
+    #[error("Invalid wait to gernerate signature {0:?}")]
+    InvalidSignature(request::Request),
 }
 
 struct Signer {
-    secret_key: Vec<u8>,
+    secret_key: String,
 }
 
 impl Signer {
-    pub fn new(secret: Vec<u8>) -> Self {
+    pub fn new(secret: String) -> Self {
         Signer { secret_key: secret }
     }
 
     pub fn sign(&self, formalized: String) -> Result<Vec<u8>> {
-        let secret = PKey::hmac(&self.secret_key)?;
+        let secret = PKey::hmac(self.secret_key.as_bytes())?;
         let mut signer = OpensslSigner::new(MessageDigest::sha1(), &secret)?;
         signer.update(formalized.as_bytes())?;
         Ok(signer.sign_to_vec()?)
     }
 }
 
-// TODO: use the const generics when the String generics const stable
 pub struct FxdxClient<P> {
     client: reqwest::Client,
     endpoint: String,
     address: String,
-    token: Option<String>,
-    signer: Option<Signer>,
+    signer: Signer,
     _marker: std::marker::PhantomData<P>,
 }
 
@@ -45,16 +45,31 @@ impl<P> FxdxClient<P>
 where
     P: request::Prefix,
 {
-    async fn send(&self, builder: reqwest::RequestBuilder) -> Result<reqwest::Response> {
+    async fn send(&self, req: request::Request) -> Result<reqwest::Response> {
+        let mut builder = self.client.request(req.method(), format!("{}{}", self.endpoint, req.uri::<P>()));
         let timestamp = {
             let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH)?;
             now.as_secs().to_string()
         };
+        let mut signature = format!("{},{},{}", self.signer.secret_key, &timestamp ,req.uri::<P>());
+        if let Some(suffix) = req.formalize() {
+            signature = format!("{},{}", signature, suffix);
+        }
+        if let Some(payload) = req.payload()? {
+            builder = builder.body(payload);
+        }
         Ok(builder
             .header("X-Timestamp", HeaderValue::from_str(&timestamp)?)
             .header("X-Address", HeaderValue::from_str(&self.address)?)
+            .header("X-Signature", HeaderValue::from_str(&signature)?)
             .send()
             .await?)
+    }
+
+       
+    /// fresh the inner signer using sr25519
+    pub async fn fresh(&mut self) -> Result<()> {
+        unimplemented!()
     }
 
     /// send a pending order to fxdx
@@ -62,40 +77,51 @@ where
         &self,
         req: request::Request,
     ) -> Result<response::PendingOrderResponse> {
-        if let request::Request::PendingOrder { .. } = &req {
-            let builder = self.client.request(
-                req.method(),
-                format!("{}{}", self.endpoint, &req.uri::<P>()),
-            );
-            if let Some(ref token) = self.token {
-                // TODO: for the logic of this using sr25519
-                unimplemented!()
-            } else {
-                return Ok(self
-                    .send({
-                        if let Some(formalized) = req.formalize() {
-                            builder.header(
-                                "X-Signature",
-                                HeaderValue::from_bytes(&self.signer.unwrap().sign(formalized)?)?,
-                            )
-                        } else {
-                            builder
-                        }
-                    })
-                    .await?
-                    .json::<response::PendingOrderResponse>()
-                    .await?);
-            }
-        } else {
-            Err(bail!(Error::InvalidRequest(format!("{:?}", req))))
-        }
+        Ok(self.send(req).await?.json::<response::PendingOrderResponse>().await?)
+    }
+
+    /// batch pending orders 
+    pub async fn batch_pending_orders(&self, req: request::Request) -> Result<response::BatchPendingOrdersResponse>  {
+        Ok(self.send(req).await?.json::<response::BatchPendingOrdersResponse>().await?)
+    }
+
+    pub async fn cancel_order(&self, req: request::Request) -> Result<response::CancelOrderResponse> {
+        Ok(self.send(req).await?.json::<response::CancelOrderResponse>().await?)
+    }
+
+    pub async fn batch_cancel_orders(&self, req: request::Request) -> Result<response::BatchCancelOrdersResponse> {
+        Ok(self.send(req).await?.json::<response::BatchCancelOrdersResponse>().await?)
+    }
+
+    pub async fn query_order_by_id(&self, req: request::Request) -> Result<response::QueryByIdResponse> {
+        Ok(self.send(req).await?.json::<response::QueryByIdResponse>().await?)
+    }
+
+    pub async fn query_orders_by_page(&self, req: request::Request) -> Result<response::QueryByPageResponse> {
+        Ok(self.send(req).await?.json::<response::QueryByPageResponse>().await?)
+    }
+
+    pub async fn query_account_balance(&self, req: request::Request) -> Result<response::BalancesResposne> {
+        Ok(self.send(req).await?.json::<response::BalancesResposne>().await?)
+    }
+
+    pub async fn query_depth(&self, req: request::Request) -> Result<response::DepthResponse> {
+        Ok(self.send(req).await?.json::<response::DepthResponse>().await?)
+    }
+
+    pub async fn query_kline(&self, req: request::Request) -> Result<response::KlineResponse> {
+        Ok(self.send(req).await?.json::<response::KlineResponse>().await?)
+    }
+
+    pub async fn query_symbols(&self, req: request::Request) -> Result<response::SymbolsResponse> {
+        Ok(self.send(req).await?.json::<response::SymbolsResponse>().await?)
     }
 }
 
 #[derive(Default)]
 pub struct FxdxBuilder<P> {
     endpoint: String,
-    secret_key: Vec<u8>,
+    secret_key: String,
     address: String,
     is_sr25519: bool,
     _marker: std::marker::PhantomData<P>,
@@ -115,14 +141,14 @@ where
         }
     }
 
-    pub fn sr25519(mut self, address: String, private_key: Vec<u8>) -> Self {
+    pub fn sr25519(mut self, address: String, private_key: String) -> Self {
         self.address = address;
-        self.secret_key = private_key;
+        self.secret_key = private_key; // FIXME: use the sr25519 handshake
         self.is_sr25519 = true;
         self
     }
 
-    pub fn secret(mut self, secret_key: Vec<u8>) -> Self {
+    pub fn secret(mut self, secret_key: String) -> Self {
         if self.is_sr25519 {
             panic!("could not set registered secret in sr25519 mode");
         }
@@ -148,8 +174,7 @@ where
                 client: builder.build()?,
                 endpoint: self.endpoint,
                 address: self.address,
-                token: None,
-                signer: Some(Signer::new(self.secret_key)),
+                signer: Signer::new(self.secret_key),
                 _marker: Default::default(),
             })
         }

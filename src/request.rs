@@ -1,7 +1,5 @@
 use bigdecimal::BigDecimal;
-use reqwest::Method;
 use serde::ser::Serializer;
-use serde::Deserialize;
 use serde::Serialize;
 use serde_repr::Deserialize_repr;
 use serde_repr::Serialize_repr;
@@ -222,6 +220,14 @@ impl Request {
             Request::Kline { symbol, scale } => Some(format!("{},{}", scale.to_string(), symbol)),
             _ => None,
         }
+    }
+
+    pub fn payload(&self) -> anyhow::Result<Option<String>> {
+        Ok(match self {
+           Request::Token{..} | Request::PendingOrder{..} => Some(serde_json::to_string(self)?),
+           Request::BatchPendingOrders(orders) => Some(serde_json::to_string(self)?),
+           _ => Ok(None),
+        })
     }
 }
 

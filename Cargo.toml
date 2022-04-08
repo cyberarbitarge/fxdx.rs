@@ -14,3 +14,4 @@ reqwest = {  version = "0.11.10", features = ["json"] }
 anyhow = "1.0.56"
 thiserror = "1.0"
 openssl = "0.10.38"
+hex = "0.4.3"
