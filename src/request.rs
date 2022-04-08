@@ -227,8 +227,8 @@ impl Request {
             Request::Token { .. } | Request::PendingOrder { .. } => {
                 Some(serde_json::to_string(self)?)
             }
-            Request::BatchPendingOrders(orders) => Some(serde_json::to_string(self)?),
-            _ => Ok(None),
+            Request::BatchPendingOrders(ref orders) => Some(serde_json::to_string(orders)?),
+            _ => None,
         })
     }
 }
