@@ -205,8 +205,12 @@ where
         }
     }
 
-    pub fn sr25519(mut self, address: String, private_key: String) -> Self {
-        self.address = address;
+    pub fn address(mut self, addr: String) -> Self {
+       self.address = address;
+       self
+    }
+
+    pub fn sr25519(mut self, private_key: String) -> Self {
         self.secret_key = private_key; // FIXME: use the sr25519 handshake
         self.is_sr25519 = true;
         self
